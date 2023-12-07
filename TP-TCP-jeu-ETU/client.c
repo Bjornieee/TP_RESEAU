@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <netdb.h>
+#include <err.h>
 
 #define N 10
 #define RESET   "\033[0m"
@@ -18,8 +18,6 @@
 #define GREEN   "\033[32m"
 #define YELLOW  "\033[33m"
 #define MAGENTA "\033[35m"
-
-int to_server_socket = -1;
 
 /* ====================================================================== */
 /*                  Affichage du jeu en mode texte brut                   */
@@ -59,19 +57,12 @@ void afficher_jeu(int jeu[N][N], int res, int points, int coups) {
     printf("Pts dernier coup %d | Pts total %d | Nb coups %d\n", res, points, coups);
 }
 
-
 /* ====================================================================== */
 /*                    Fonction principale                                 */
 /* ====================================================================== */
-int main(int argc, char **argv) {
-    int jeu[N][N];
-    int lig, col;
-    int res = -1, points = 0, coups = 0;
 
-    /* Init args */
-    struct sockaddr_in serverSockAddr;
-    struct hostent *serverHostEnt;
-    long hostAddr=inet_addr(argv[1]);
+int main(__attribute_maybe_unused__ int argc, char **argv) {
+    int jeu[N][N];
 
     /* Init jeu */
     for (int i=0; i<N; i++)
@@ -79,40 +70,24 @@ int main(int argc, char **argv) {
             jeu[i][j] = -1;
 
     /* Creation socket TCP */
-    if ( (to_server_socket = socket(AF_INET,SOCK_STREAM,0)) < 0)
-    {
-        fprintf(stderr,"Probleme de la creation socket client\n");
-        exit(0);
-    }
+    int sock;
+    if ((sock = socket(AF_INET,SOCK_STREAM,0)) < 0) errx(1,"Failed to create socket");
 
     /* Init caracteristiques serveur distant (struct_in) */
-    bzero(&serverSockAddr,sizeof(serverSockAddr));
-    hostAddr = inet_addr(argv[1]);
-    if ( (long)hostAddr != (long)-1)
-        bcopy(&hostAddr,&serverSockAddr.sin_addr,sizeof(hostAddr));
-    else
-    {
-        serverHostEnt = gethostbyname(argv[1]);
-        if (serverHostEnt == NULL)
-        {
-            fprintf(stderr,"Probleme du gethost\n");
-            exit(EXIT_FAILURE);
-        }
-        bcopy(serverHostEnt->h_addr,&serverSockAddr.sin_addr,serverHostEnt->h_length);
-    }
-    serverSockAddr.sin_port = htons((uint16_t) atoi(argv[2]));
+    struct sockaddr_in serverSockAddr;
+    memset(&serverSockAddr, 0, sizeof(serverSockAddr));
     serverSockAddr.sin_family = AF_INET;
+    uint16_t port = strtol(argv[2],NULL,10);
+    serverSockAddr.sin_port = htons(port);
+    inet_pton(AF_INET, argv[1], &(serverSockAddr.sin_addr));
 
     /* Etablissement connexion TCP avec process serveur distant */
-    if(connect( to_server_socket,
-                (struct sockaddr *)&serverSockAddr,
-                sizeof(serverSockAddr)) == -1)
-    {
-        fprintf(stderr,"Probleme de la demande de connection\n");
-        exit(0);
-    }
+    if(connect( sock,(struct sockaddr *)&serverSockAddr,sizeof(serverSockAddr)) == -1)
+        errx(1,"Failed to connect");
 
     /* Tentatives du joueur : stoppe quand tresor trouvé */
+    int lig, col;
+    int res = 0, points = 0, coups = 0;
     do {
         afficher_jeu(jeu, res, points, coups);
         printf("\nEntrer le numéro de ligne : ");
@@ -126,15 +101,12 @@ int main(int argc, char **argv) {
         snprintf(message, sizeof(message),"%d %d",lig,col);
 
         /* Envoi de la requête au serveur (send) */
-        if(write(to_server_socket,message,sizeof(message))<sizeof(message)){
-            perror("write");
-            exit(EXIT_FAILURE);
-        };
+        if(write(sock,message,sizeof(message))<sizeof(message)) errx(1,"Failed to write");
 
 
         /* Réception du resultat du coup (recv) */
-        char* reponse = NULL;
-        if(read(to_server_socket,reponse,8)<0){
+        char reponse[3]; //size 3 instead of 2 to get the 10 points
+        if(read(sock,&reponse,sizeof(reponse))<0){
             perror("read");
             exit(EXIT_FAILURE);
         };
@@ -151,12 +123,10 @@ int main(int argc, char **argv) {
     } while (res);
 
     /* Fermeture connexion TCP */
-    shutdown(to_server_socket,2);
-    close(to_server_socket);
+    close(sock);
 
     /* Terminaison du jeu : le joueur a trouvé le tresor */
     afficher_jeu(jeu, res, points, coups);
-    printf("\nBRAVO : trésor trouvé en %d essai(s) avec %d point(s)"
-            " au total !\n\n", coups, points);
+    printf("\nBRAVO : trésor trouvé en %d essai(s) avec %d point(s) au total !\n\n", coups, points);
     return 0;
 }
