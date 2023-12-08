@@ -26,12 +26,12 @@ void afficher_jeu(int jeu[N][N], int res, int points, int coups) {
 
     printf("\n************ TROUVEZ LE TRESOR ! ************\n");
     printf("    ");
-    for (int i=0; i<10; i++)
-        printf("  %d ", i+1);
+    for (int i = 0; i < 10; i++)
+        printf("  %d ", i + 1);
     printf("\n    -----------------------------------------\n");
-    for (int i=0; i<10; i++){
-        printf("%2d  ", i+1);
-        for (int j=0; j<10; j++) {
+    for (int i = 0; i < 10; i++) {
+        printf("%2d  ", i + 1);
+        for (int j = 0; j < 10; j++) {
             printf("|");
             switch (jeu[i][j]) {
                 case -1:
@@ -61,62 +61,66 @@ void afficher_jeu(int jeu[N][N], int res, int points, int coups) {
 /*                    Fonction principale                                 */
 /* ====================================================================== */
 
-int main(__attribute_maybe_unused__ int argc, char **argv) {
-    int jeu[N][N];
+int main(int argc, char **argv) {
+    if (argc != 3)
+        errx(EXIT_FAILURE, "usage : %s <ip adress> <port>", argv[0]);
 
     /* Init jeu */
-    for (int i=0; i<N; i++)
-        for (int j=0; j<N; j++)
+    int jeu[N][N];
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++)
             jeu[i][j] = -1;
 
     /* Creation socket TCP */
     int sock;
-    if ((sock = socket(AF_INET,SOCK_STREAM,0)) < 0) errx(1,"Failed to create socket");
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        errx(1, "Failed to create socket");
 
     /* Init caracteristiques serveur distant (struct_in) */
     struct sockaddr_in serverSockAddr;
     memset(&serverSockAddr, 0, sizeof(serverSockAddr));
     serverSockAddr.sin_family = AF_INET;
-    uint16_t port = strtol(argv[2],NULL,10);
+    uint16_t port = strtol(argv[2], NULL, 10); // My IDE (CLion) told me to use strtol instead of atoi
     serverSockAddr.sin_port = htons(port);
     inet_pton(AF_INET, argv[1], &(serverSockAddr.sin_addr));
 
     /* Etablissement connexion TCP avec process serveur distant */
-    if(connect( sock,(struct sockaddr *)&serverSockAddr,sizeof(serverSockAddr)) == -1)
-        errx(1,"Failed to connect");
+    if (connect(sock, (struct sockaddr *) &serverSockAddr, sizeof(serverSockAddr)) == -1)
+        errx(EXIT_FAILURE, "Failed to connect");
 
     /* Tentatives du joueur : stoppe quand tresor trouvé */
-    int lig, col;
-    int res = 0, points = 0, coups = 0;
+    int lig, col, res = 0, points = 0, coups = 0;
     do {
         afficher_jeu(jeu, res, points, coups);
         printf("\nEntrer le numéro de ligne : ");
-        scanf("%d", &lig);
+        if(scanf("%d", &lig)!=1) // IDE told me to use strtol but i preffered to keep scanf and add an error handling because with strtol my lig had lig.col value
+            // example if i wanted lig = 4 and col = 5, lig would be 45
+            errx(1,"You should only enter a number");
         printf("Entrer le numéro de colonne : ");
-        scanf("%d", &col);
+        if (scanf("%d", &col)!=1)
+            errx(1,"You should only enter a number");
 
         /* Construction requête (serialisation en chaines de caractères) */
+        char message[6]; // Doesn't support values > 99
+        // but even if the value is greater than 99 it'll be 10 points in all cases, so it's not a major issue if the grid is smaller than 99x99
+        snprintf(message, sizeof(message), "%d %d", lig, col);
 
-        char message[4];
-        snprintf(message, sizeof(message),"%d %d",lig,col);
 
         /* Envoi de la requête au serveur (send) */
-        if(write(sock,message,sizeof(message))<sizeof(message)) errx(1,"Failed to write");
-
+        if (write(sock, message, sizeof(message)) < sizeof(message))
+            errx(EXIT_FAILURE, "Failed to write");
 
         /* Réception du resultat du coup (recv) */
-        char reponse[3]; //size 3 instead of 2 to get the 10 points
-        if(read(sock,&reponse,sizeof(reponse))<0){
-            perror("read");
-            exit(EXIT_FAILURE);
-        };
+        char reponse[3]; // size 3 instead of 2, so that the 10 points don't send only the 1
 
+        if (read(sock, &reponse, sizeof(reponse)) < 0)
+            errx(EXIT_FAILURE, "Failed to read");
         /* Deserialisation du résultat en un entier */
         res = atoi(reponse);
 
         /* Mise à jour */
-        if (lig>=1 && lig<=N && col>=1 && col<=N)
-            jeu[lig-1][col-1] = res;
+        if (lig >= 1 && lig <= N && col >= 1 && col <= N)
+            jeu[lig - 1][col - 1] = res;
         points += res;
         coups++;
 

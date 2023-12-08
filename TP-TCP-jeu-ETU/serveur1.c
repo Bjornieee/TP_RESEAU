@@ -30,7 +30,7 @@ int main() {
         errx(1,"Failed to bind");
 
     // LISTENING
-    if((listen(sock,2)) == -1)
+    if((listen(sock,1)) == -1)
         errx(1,"listen");
 
     // ACCEPT CONNEXION
@@ -41,14 +41,18 @@ int main() {
         errx(1,"Failed to create new socket");
 
     // READ/WRITE VALUES
-    char buff[4], reponse[3];
+    char buff[6], reponse[3];
     int x, y, nbPoints;
-    while((recv(newSock, buff, 4, 0)) > 0){
-        sscanf(buff,"%d %d",&x,&y); //same as atoi my IDE told me to use strtol instead of sscanf
+    long testRecieve;
+    while((testRecieve = recv(newSock, buff, 6, 0)) > 0){
+        sscanf(buff,"%d %d",&x,&y); // not handling the convert issue that may occur because the client is the one handling it, so it'll be useless to handle it 2 times
         nbPoints = recherche_tresor(10,5,5,x,y);
         snprintf(reponse, sizeof(reponse),"%d",nbPoints);
-        send(newSock, reponse, sizeof(reponse), 0);
+        if(send(newSock, reponse, sizeof(reponse), 0)<0)
+            errx(1,"Failed to send data");
     }
+    if(testRecieve == -1)
+        errx(1,"Failed to read");
 
     // CLOSING SOCKET
     close(newSock);
