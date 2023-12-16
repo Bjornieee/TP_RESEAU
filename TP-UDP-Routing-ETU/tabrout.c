@@ -10,6 +10,7 @@
 /* Fonction qui initialise la Table de Routage initiale  */
 /* par lecture d'un fichier de configuration initiale    */
 /* dont l'identifiant est passé en argument              */
+/* ===================================================== */
 void init_routing_table(routing_table_t * rt, char * fileConfig) {
   FILE *fichier = NULL;
   char ligne[64];
