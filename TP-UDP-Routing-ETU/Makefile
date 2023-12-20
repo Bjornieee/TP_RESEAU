@@ -14,7 +14,7 @@ OBJ_RPEER = routP.o
 #tpEmRec : uniquement un échange du processus émetteur vers l'autre récepteur
 tpEmRec: $(OBJ_COMMON) $(OBJ_REM) $(OBJ_RREC)
 	$(CC) -o routPem $(OBJ_COMMON) $(OBJ_REM)
-	$(CC) -o routPRec $(OBJ_COMMON) $(OBJ_RREC)
+	$(CC) -o routPrec $(OBJ_COMMON) $(OBJ_RREC)
 
 #tpEmRec : une seule entité pour être à la fois émetteur et récepteur
 tpPeer: $(OBJ_COMMON) $(OBJ_RPEER)
